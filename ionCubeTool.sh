@@ -44,12 +44,19 @@ fi
 
 ionCubeTool-print-usage() {
     echo "manage ionCube-PHP-Zend-Extension"
-    echo "  -d  --download                   get latest ionCube to separate 'Dev'-Folder"
-    echo "  -l  --listVersions               list local installed Versions"
-    echo "  -c  --createVersion [Version]    mark downloaded source as [Version]"
-    echo "  -u  --useVersion [Version]       use [Version]"
-    echo "  -mw --moveWizzard [web-folder]   move wizzard to [web-folder]"
+    echo "  -d  --download                   use latest ionCube"
+    echo "  -r  --revertToLastDownload       revert to latest downloaded version"
+    echo "  -dp --disablePatch               remove ionCube-Patch"
+    echo "  -uw --useWizzard [web-folder]    move wizzard to [web-folder]"
     echo "  -rw --removeWizzard [web-folder] remove wizzard from [web-folder]"
+}
+
+getGivenWebFolder() {
+    folder=''
+    [ -d "$1" ] && folder="$1"
+    [ -z "$folder" ] && [ -d "/var/services/web/$1" ] && folder="/var/services/web/$1"
+    [ -z "$folder" ] && { echo "Web-Folder '$1' not found!"; exit 1; }
+    echo "$folder"
 }
 
 # controlVars
@@ -58,41 +65,34 @@ retState=0
 
 doPatch=1
 doDownload=0
-doList=0
-doCreate=0
-doUseVersion=0
-doMove=0
-doRemove=0
+doRevert=0
+doDisablePatch=0
+doUseWizz=0
+doRemoveWizz=0
 while [ $# -gt 0 ]; do
     case "$1" in
         "-d" | "--download" )
             doDownload=1
+            ;;
+        "-r" | "--revertToLastDownload" )
+            doRevert=1
+            ;;
+        "-dp" | "--disablePatch" )
+            doDisablePatch=1
             doPatch=0
             ;;
-        "-l" | "--listVersions" )
-            doList=1
+        "-uw" | "--useWizzard" )
+            doUseWizz=1
             doPatch=0
-        "-c" | "--createVersion" )
-            doCreate=1
-            doPatch=0
-            [ -z "$2" ] && { echo "param 'createVersion' needs a Version-String"; exit 1; }
-            shift
-            ;;
-        "-u" | "--useVersion" )
-            doUseVersion=1
-            [ -z "$2" ] && { echo "param 'useVersion' needs a existing Version-String"; doList=1; doUseVersion=0; doPatch=0; }
-            shift
-            ;;
-        "-mw" | "--moveWizzard" )
-            doMove=1
-            doPatch=0
-            [ -z "$2" ] && { echo "param 'moveWizzard' needs a Folder under /var/services/web"; exit 1; }
+            [ -z "$2" ] && { echo "param 'useWizzard' needs a Folder under /var/services/web"; exit 1; }
+            wizzardWebFolder=`getGivenWebFolder $2`
             shift
             ;;
         "-rw" | "--removeWizzard" )
-            doRemove=1
+            doRemoveWizz=1
             doPatch=0
             [ -z "$2" ] && { echo "param 'removeWizzard' needs a under /var/services/web"; exit 1; }
+            wizzardWebFolder=`getGivenWebFolder $2`
             shift
             ;;
         * )
@@ -108,11 +108,15 @@ CONFIG_CHANGED_RETURN_STATE=${IONCUBE_RETURN_STATE_IF_CHANGED:-3}
 
 IONCUBE_DOWNLOAD_BASE_URL=https://downloads.ioncube.com/loader_downloads
 IONCUBE_DOWNLOAD_TAR=ioncube_loaders_lin_armv7l.tar.gz
-VERSION_DIR='ionCubeSrc'
+DOWNLOAD_DIR='ionCubeSrc'
+IONCUBE_LIB_DIR='ionCubeUsed'
 
 phpVersionWithDot="${USED_PHP_VERSION:0:1}.${USED_PHP_VERSION:1:1}"
 ioncubeLoaderlib="ioncube_loader_lin_${phpVersionWithDot}.so"
 phpFpmIniFile="/volume1/@appstore/PHP${phpVersionWithDot}/misc/php-fpm.ini"
+phpModules="/usr/local/lib/php${USED_PHP_VERSION}/modules"
+
+[ `ls $DOWNLOAD_DIR/ | wc -l` -gt 0 ] || doDownload=1
 
 # check if run as root if patching should be done
 if [ "$doPatch" -gt 0 ] && [ $(id -u "$(whoami)") -ne 0 ]; then
@@ -121,25 +125,42 @@ if [ "$doPatch" -gt 0 ] && [ $(id -u "$(whoami)") -ne 0 ]; then
 fi
 
 if [ "$doDownload" -gt 0 ]; then
-    [ ! -d "$VERSION_DIR/DEV" ] || mkdir "$VERSION_DIR/DEV"
-    cd "$VERSION_DIR/DEV"
-	rm -f *
+    [ -f $IONCUBE_LIB_DIR/${ioncubeLoaderlib} ] || && mv -f $IONCUBE_LIB_DIR/${ioncubeLoaderlib} $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last
+    rm -f $DOWNLOAD_DIR/*
     wget "${IONCUBE_DOWNLOAD_BASE_URL}/${IONCUBE_DOWNLOAD_TAR}"
     tar xvfz "${IONCUBE_DOWNLOAD_TAR}"
+    [ -f $DOWNLOAD_DIR/${ioncubeLoaderlib} ] || && { echo "${ioncubeLoaderlib} not found in download-folder $VERSION_DIR"; exit 1; }
+    [ -d $phpModules ] || && { echo "Folder to place ionCubeLib '$phpModules' not found!"; exit 1; }
+    cp -fp $DOWNLOAD_DIR/${ioncubeLoaderlib} $IONCUBE_LIB_DIR/${ioncubeLoaderlib}
+    ((serviceRestart++))
 fi
 
-if [ "$doList" -gt 0 ]; then
-    ls -la "$VERSION_DIR"
+if [ "$doRevert" -gt 0 ]; then
+    [ -f $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last ] || { echo "No Backup-Version Found!"; exit 1; }
+    echo "using Backup-Version `ls -al $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last`"
+    cp -fp $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last $IONCUBE_LIB_DIR/${ioncubeLoaderlib}
+    ((serviceRestart++))
+fi
+
+if [ "$doUseWizz" -gt 0 ]; then
+    [ -f $DOWNLOAD_DIR/loader-wizard.php ] || { echo "No Wizzard Found!"; exit 1; }
+    cp -fp $DOWNLOAD_DIR/loader-wizard.php $wizzardWebFolder
+    echo "Wizzard copied to '$wizzardWebFolder'"
+fi
+
+if [ "$doRemoveWizz" -gt 0 ]; then
+    [ -f $wizzardWebFolder/loader-wizard.php ] || { echo "Wizzard wasn't copied to '$wizzardWebFolder'!"; exit 1; }
+    rm -f $wizzardWebFolder/loader-wizard.php
+    echo "Wizzard removed from '$wizzardWebFolder'"
 fi
 
 # Check if zend-extension exists in file
 if [ "$doPatch" -gt 0 ]; then
-    # TODO add use
+    ln -fs $IONCUBE_LIB_DIR/${ioncubeLoaderlib} $phpModules/${ioncubeLoaderlib}
     if ! grep -q "${ioncubeLoaderlib}" "$phpFpmIniFile"; then
         echo "adding zend_extension /usr/local/lib/php${USED_PHP_VERSION}/modules/${ioncubeLoaderlib} to $phpFpmIniFile"
         sed -i "1 i\zend_extension = /usr/local/lib/php${USED_PHP_VERSION}/modules/${ioncubeLoaderlib}" "$phpFpmIniFile"
         ((serviceRestart++))
-        retState=$CONFIG_CHANGED_RETURN_STATE
     fi
 fi
 
@@ -153,6 +174,7 @@ if [ $serviceRestart -gt 0 ]; then
         exit 1
     fi
     echo "PHP-${phpVersionWithDot} service restarted."
+    retState=$CONFIG_CHANGED_RETURN_STATE
 else
     echo "Config untouched."
 fi
