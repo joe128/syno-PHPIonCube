@@ -51,17 +51,15 @@ ionCubeTool-print-usage() {
     echo "  -rw --removeWizzard [web-folder] remove wizzard from [web-folder]"
 }
 
-getGivenWebFolder() {
-    folder=''
-    [ -d "$1" ] && folder="$1"
-    [ -z "$folder" ] && [ -d "/var/services/web/$1" ] && folder="/var/services/web/$1"
-    [ -z "$folder" ] && { echo "Web-Folder '$1' not found!"; exit 1; }
-    echo "$folder"
+setGivenWebFolder() {
+    [ -d "$1" ] && wizzardWebFolder="$1"
+    [ -z "$wizzardWebFolder" ] && [ -d "/var/services/web/$1" ] && wizzardWebFolder="/var/services/web/$1"
 }
 
 # controlVars
 serviceRestart=0
 retState=0
+wizzardWebFolder=''
 
 doPatch=1
 doDownload=0
@@ -85,14 +83,15 @@ while [ $# -gt 0 ]; do
             doUseWizz=1
             doPatch=0
             [ -z "$2" ] && { echo "param 'useWizzard' needs a Folder under /var/services/web"; exit 1; }
-            wizzardWebFolder=`getGivenWebFolder $2`
+            setGivenWebFolder $2
+            [ -z "$wizzardWebFolder" ] && { echo "Web-Folder '$2' not found!"; exit 1; }
             shift
             ;;
         "-rw" | "--removeWizzard" )
             doRemoveWizz=1
             doPatch=0
-            [ -z "$2" ] && { echo "param 'removeWizzard' needs a under /var/services/web"; exit 1; }
-            wizzardWebFolder=`getGivenWebFolder $2`
+            setGivenWebFolder $2
+            [ -z "$wizzardWebFolder" ] && { echo "Web-Folder '$2' not found!"; exit 1; }
             shift
             ;;
         * )
@@ -125,13 +124,13 @@ if [ "$doPatch" -gt 0 ] && [ $(id -u "$(whoami)") -ne 0 ]; then
 fi
 
 if [ "$doDownload" -gt 0 ]; then
-    [ -f $IONCUBE_LIB_DIR/${ioncubeLoaderlib} ] || && mv -f $IONCUBE_LIB_DIR/${ioncubeLoaderlib} $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last
+    [ -f $IONCUBE_LIB_DIR/${ioncubeLoaderlib} ] && mv -f $IONCUBE_LIB_DIR/${ioncubeLoaderlib} $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last
     rm -f $DOWNLOAD_DIR/*
-    wget "${IONCUBE_DOWNLOAD_BASE_URL}/${IONCUBE_DOWNLOAD_TAR}"
-    tar xvfz "${IONCUBE_DOWNLOAD_TAR}"
-    [ -f $DOWNLOAD_DIR/${ioncubeLoaderlib} ] || && { echo "${ioncubeLoaderlib} not found in download-folder $VERSION_DIR"; exit 1; }
-    [ -d $phpModules ] || && { echo "Folder to place ionCubeLib '$phpModules' not found!"; exit 1; }
-    cp -fp $DOWNLOAD_DIR/${ioncubeLoaderlib} $IONCUBE_LIB_DIR/${ioncubeLoaderlib}
+    wget "${IONCUBE_DOWNLOAD_BASE_URL}/${IONCUBE_DOWNLOAD_TAR}" -P $DOWNLOAD_DIR
+    tar -xvzf $DOWNLOAD_DIR/${IONCUBE_DOWNLOAD_TAR} -C $DOWNLOAD_DIR 
+    [ -f $DOWNLOAD_DIR/ioncube/${ioncubeLoaderlib} ] || { echo "${ioncubeLoaderlib} not found in download-folder $DOWNLOAD_DIR/ioncube"; exit 1; }
+    [ -d $phpModules ] || { echo "Folder to place ionCubeLib '$phpModules' not found!"; exit 1; }
+    cp -fp $DOWNLOAD_DIR//ioncube/${ioncubeLoaderlib} $IONCUBE_LIB_DIR/${ioncubeLoaderlib}
     ((serviceRestart++))
 fi
 
@@ -143,8 +142,8 @@ if [ "$doRevert" -gt 0 ]; then
 fi
 
 if [ "$doUseWizz" -gt 0 ]; then
-    [ -f $DOWNLOAD_DIR/loader-wizard.php ] || { echo "No Wizzard Found!"; exit 1; }
-    cp -fp $DOWNLOAD_DIR/loader-wizard.php $wizzardWebFolder
+    [ -f $DOWNLOAD_DIR/ioncube/loader-wizard.php ] || { echo "No Wizzard Found!"; exit 1; }
+    cp -fp $DOWNLOAD_DIR/ioncube/loader-wizard.php $wizzardWebFolder
     echo "Wizzard copied to '$wizzardWebFolder'"
 fi
 
@@ -156,7 +155,7 @@ fi
 
 # Check if zend-extension exists in file
 if [ "$doPatch" -gt 0 ]; then
-    ln -fs $IONCUBE_LIB_DIR/${ioncubeLoaderlib} $phpModules/${ioncubeLoaderlib}
+    ln -fs `realpath $IONCUBE_LIB_DIR/${ioncubeLoaderlib}` $phpModules/${ioncubeLoaderlib}
     if ! grep -q "${ioncubeLoaderlib}" "$phpFpmIniFile"; then
         echo "adding zend_extension /usr/local/lib/php${USED_PHP_VERSION}/modules/${ioncubeLoaderlib} to $phpFpmIniFile"
         sed -i "1 i\zend_extension = /usr/local/lib/php${USED_PHP_VERSION}/modules/${ioncubeLoaderlib}" "$phpFpmIniFile"
