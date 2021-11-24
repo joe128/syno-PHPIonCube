@@ -5,3 +5,4 @@
  - first Release, including
    - Project-Auto-Update
    - patching appstore - php-fpm.ini
+   - download, revert, remove patch, use/remove wizzard

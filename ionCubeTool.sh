@@ -82,16 +82,16 @@ while [ $# -gt 0 ]; do
         "-uw" | "--useWizzard" )
             doUseWizz=1
             doPatch=0
-            [ -z "$2" ] && { echo "param 'useWizzard' needs a Folder under /var/services/web"; exit 1; }
+            [ -z "$2" ] && { echo "[ERR] param 'useWizzard' needs a Folder under /var/services/web"; exit 1; }
             setGivenWebFolder $2
-            [ -z "$wizzardWebFolder" ] && { echo "Web-Folder '$2' not found!"; exit 1; }
+            [ -z "$wizzardWebFolder" ] && { echo "[ERR] Web-Folder '$2' not found!"; exit 1; }
             shift
             ;;
         "-rw" | "--removeWizzard" )
             doRemoveWizz=1
             doPatch=0
             setGivenWebFolder $2
-            [ -z "$wizzardWebFolder" ] && { echo "Web-Folder '$2' not found!"; exit 1; }
+            [ -z "$wizzardWebFolder" ] && { echo "[ERR] Web-Folder '$2' not found!"; exit 1; }
             shift
             ;;
         * )
@@ -119,7 +119,7 @@ phpModules="/usr/local/lib/php${USED_PHP_VERSION}/modules"
 
 # check if run as root if patching should be done
 if [ "$doPatch" -gt 0 ] && [ $(id -u "$(whoami)") -ne 0 ]; then
-    echo "ionCubeTool needs to run as root, if the config should be patched!"
+    echo "[ERR] ionCubeTool needs to run as root, if the config should be patched!"
     exit 1
 fi
 
@@ -128,14 +128,14 @@ if [ "$doDownload" -gt 0 ]; then
     rm -f $DOWNLOAD_DIR/*
     wget "${IONCUBE_DOWNLOAD_BASE_URL}/${IONCUBE_DOWNLOAD_TAR}" -P $DOWNLOAD_DIR
     tar -xvzf $DOWNLOAD_DIR/${IONCUBE_DOWNLOAD_TAR} -C $DOWNLOAD_DIR 
-    [ -f $DOWNLOAD_DIR/ioncube/${ioncubeLoaderlib} ] || { echo "${ioncubeLoaderlib} not found in download-folder $DOWNLOAD_DIR/ioncube"; exit 1; }
-    [ -d $phpModules ] || { echo "Folder to place ionCubeLib '$phpModules' not found!"; exit 1; }
+    [ -f $DOWNLOAD_DIR/ioncube/${ioncubeLoaderlib} ] || { echo "[ERR] ${ioncubeLoaderlib} not found in download-folder $DOWNLOAD_DIR/ioncube"; exit 1; }
+    [ -d $phpModules ] || { echo "[ERR] Folder to place ionCubeLib '$phpModules' not found!"; exit 1; }
     cp -fp $DOWNLOAD_DIR//ioncube/${ioncubeLoaderlib} $IONCUBE_LIB_DIR/${ioncubeLoaderlib}
     ((serviceRestart++))
 fi
 
 if [ "$doRevert" -gt 0 ]; then
-    [ -f $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last ] || { echo "No Backup-Version Found!"; exit 1; }
+    [ -f $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last ] || { echo "[ERR] No Backup-Version Found!"; exit 1; }
     echo "using Backup-Version `ls -al $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last`"
     cp -fp $IONCUBE_LIB_DIR/${ioncubeLoaderlib}.last $IONCUBE_LIB_DIR/${ioncubeLoaderlib}
     ((serviceRestart++))
@@ -148,12 +148,11 @@ if [ "$doUseWizz" -gt 0 ]; then
 fi
 
 if [ "$doRemoveWizz" -gt 0 ]; then
-    [ -f $wizzardWebFolder/loader-wizard.php ] || { echo "Wizzard wasn't copied to '$wizzardWebFolder'!"; exit 1; }
+    [ -f $wizzardWebFolder/loader-wizard.php ] || { echo "[ERR] Wizzard wasn't copied to '$wizzardWebFolder'!"; exit 1; }
     rm -f $wizzardWebFolder/loader-wizard.php
     echo "Wizzard removed from '$wizzardWebFolder'"
 fi
 
-# Check if zend-extension exists in file
 if [ "$doPatch" -gt 0 ]; then
     ln -fs `realpath $IONCUBE_LIB_DIR/${ioncubeLoaderlib}` $phpModules/${ioncubeLoaderlib}
     if ! grep -q "${ioncubeLoaderlib}" "$phpFpmIniFile"; then
@@ -169,7 +168,7 @@ if [ $serviceRestart -gt 0 ]; then
     if [ -x /usr/syno/sbin/synoservice  ]; then
         synoservice --restart pkgctl-PHP${phpVersionWithDot}
     else
-        echo "Could not restart PHP-${phpVersionWithDot} service! Please reboot or try to restart manually via Package Center."
+        echo "[ERR] Could not restart PHP-${phpVersionWithDot} service! Please reboot or try to restart manually via Package Center."
         exit 1
     fi
     echo "PHP-${phpVersionWithDot} service restarted."
