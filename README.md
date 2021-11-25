@@ -1,4 +1,4 @@
-# syno-PHPIonCube
+# syno-PHP-IonCube
  * Tool to use the [ionCubeLoader](https://www.ioncube.com/) on a synology
  * Downloads the latest ionCubeLoader and install it by patching the php-fpm.ini in appstore
 
