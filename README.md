@@ -3,10 +3,10 @@
  * Downloads the latest ionCubeLoader and install it by patching the php-fpm.ini in appstore
 
 ## available Options
- * -d  --download  
+ * -d or --download  
  Download and use the latest ionCube
  * -r or --revertToLastDownload  
- Revert the used Version to the latest downloaded Version
+ Revert the used Version to the previously downloaded Version
  * -dp or --disablePatch  
  Remove the Patch
  * -uw or --useWizzard [web-folder]  
