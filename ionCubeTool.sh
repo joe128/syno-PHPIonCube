@@ -91,6 +91,7 @@ while [ $# -gt 0 ]; do
         "-rw" | "--removeWizzard" )
             doRemoveWizz=1
             doPatch=0
+            [ -z "$2" ] && { echo "[ERR] param 'removeWizzard' needs a Folder under /var/services/web"; exit 1; }
             setGivenWebFolder $2
             [ -z "$wizzardWebFolder" ] && { echo "[ERR] Web-Folder '$2' not found!"; exit 1; }
             shift
@@ -116,10 +117,10 @@ ioncubeLoaderlib="ioncube_loader_lin_${phpVersionWithDot}.so"
 phpFpmIniFile="/volume1/@appstore/PHP${phpVersionWithDot}/misc/php-fpm.ini"
 phpModules="/usr/local/lib/php${USED_PHP_VERSION}/modules"
 
-[ `ls $DOWNLOAD_DIR/ | wc -l` -gt 0 ] || doDownload=1
+[ -d $DOWNLOAD_DIR/ioncube ] || doDownload=1
 
 # check if run as root if patching should be done
-if [ "$doPatch" -gt 0 ] && [ $(id -u "$(whoami)") -ne 0 ]; then
+if [[ "$doPatch" -gt 0 || "$doDisablePatch" -gt 0 ]] && [ $(id -u "$(whoami)") -ne 0 ]; then
     echo "[ERR] ionCubeTool needs to run as root, if the config should be patched!"
     exit 1
 fi
@@ -155,10 +156,22 @@ if [ "$doRemoveWizz" -gt 0 ]; then
 fi
 
 if [ "$doPatch" -gt 0 ]; then
-    ln -fs `realpath $IONCUBE_LIB_DIR/${ioncubeLoaderlib}` $phpModules/${ioncubeLoaderlib}
+    if [ ! -f $phpModules/${ioncubeLoaderlib} ] || [ `readlink -f $phpModules/${ioncubeLoaderlib}` != `realpath $IONCUBE_LIB_DIR/${ioncubeLoaderlib}` ]; then
+        ln -fs `realpath $IONCUBE_LIB_DIR/${ioncubeLoaderlib}` $phpModules/${ioncubeLoaderlib}
+        ((serviceRestart++))
+    fi
     if ! grep -q "${ioncubeLoaderlib}" "$phpFpmIniFile"; then
         echo "adding zend_extension /usr/local/lib/php${USED_PHP_VERSION}/modules/${ioncubeLoaderlib} to $phpFpmIniFile"
         sed -i "1 i\zend_extension = /usr/local/lib/php${USED_PHP_VERSION}/modules/${ioncubeLoaderlib}" "$phpFpmIniFile"
+        ((serviceRestart++))
+    fi
+fi
+
+if [ "$doDisablePatch" -gt 0 ]; then
+    rm -f $phpModules/${ioncubeLoaderlib}
+    if grep -q "${ioncubeLoaderlib}" "$phpFpmIniFile"; then
+        echo "removing zend_extension from $phpFpmIniFile"
+        grep -v "zend_extension = /usr/local/lib/php${USED_PHP_VERSION}/modules/${ioncubeLoaderlib}" "$phpFpmIniFile" > tmp.fpmini && mv tmp.fpmini "$phpFpmIniFile"
         ((serviceRestart++))
     fi
 fi

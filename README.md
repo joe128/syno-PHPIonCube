@@ -4,7 +4,7 @@
 
 ## available Options
  * -d or --download  
- Download and use the latest ionCube
+ Download and use the latest ionCube (default on first run)
  * -r or --revertToLastDownload  
  Revert the used Version to the previously downloaded Version
  * -dp or --disablePatch  
