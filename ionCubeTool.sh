@@ -109,8 +109,8 @@ CONFIG_CHANGED_RETURN_STATE=${IONCUBE_RETURN_STATE_IF_CHANGED:-3}
 
 IONCUBE_DOWNLOAD_BASE_URL=https://downloads.ioncube.com/loader_downloads
 IONCUBE_DOWNLOAD_TAR=ioncube_loaders_lin_armv7l.tar.gz
-DOWNLOAD_DIR='ionCubeSrc'
-IONCUBE_LIB_DIR='ionCubeUsed'
+DOWNLOAD_DIR="$(realpath $(dirname $0))/ionCubeSrc"
+IONCUBE_LIB_DIR="$(realpath $(dirname $0))/ionCubeUsed"
 
 phpVersionWithDot="${USED_PHP_VERSION:0:1}.${USED_PHP_VERSION:1:1}"
 ioncubeLoaderlib="ioncube_loader_lin_${phpVersionWithDot}.so"
