@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# get installed git
 gitbin="$AUTOUPDATE_GIT_BIN"
 if [ -z $gitbin ]; then
     if command -v /usr/bin/git > /dev/null; then
@@ -17,7 +18,6 @@ fi
 # run auto-update daily, not if file disableAutoUpdate exists or env AUTOUPDATE_DISABLE is set
 if [ -n "${gitbin}" ] && [ ! -f "$(dirname "$0")/.autoUpdateDisable" ] && [ -z "$AUTOUPDATE_DISABLE" ] && [ -d "$(dirname "$0")/.git" ]; then
     [ -z "${AUTOUPDATE_NO_LOCAL_RESET}" ] && [ ! -f "$(dirname "$0")/.autoUpdateDisableHardReset" ] && doHardReset=1 || doHardReset=0
-    gitBranch=${AUTOUPDATE_BRANCH:=main}
     scriptName=$(basename "$0")
     today=$(date +'%Y-%m-%d')
     autoUpdateStatusFile="/tmp/.${scriptName}-autoUpdate"
@@ -26,15 +26,23 @@ if [ -n "${gitbin}" ] && [ ! -f "$(dirname "$0")/.autoUpdateDisable" ] && [ -z "
         touch "$autoUpdateStatusFile"
         cd "$(dirname "$0")" || exit 1
         $gitbin fetch
-        commits=$(git rev-list HEAD...origin/"$gitBranch" --count)
+        gitBranch=$(${gitbin} rev-parse --abbrev-ref HEAD)
+        gitBranch=${gitBranch:=main}
+        origin=$(${gitbin} for-each-ref --format='%(upstream:short)' "$(${gitbin} symbolic-ref -q HEAD)")
+        [ -n "$origin" ] && commits=$(${gitbin} rev-list HEAD..."$origin" --count) || commits=0
         if [ $commits -gt 0 ]; then
-            echo "[WARN][autoUpdate] Found updates ($commits commits)..."
+            echo "[autoUpdate] Found updates ($commits commits)..."
             [ $doHardReset -gt 0 ] && $gitbin reset --hard
             $gitbin pull --force
-            echo "[autoUpdate] Executing new version..."
-            exec "$(pwd -P)/${scriptName}" "$@"
-            # In case executing new fails
-            echo "[ERR][autoUpdate] Executing new version failed."
+            if [ $? -eq 0 ]; then
+                localTip=$(${gitbin} show --abbrev-commit --format=oneline $(${gitbin} rev-list --max-count=1 @{u}) | head -1)
+                echo "[autoUpdate] source is now at commit '$localTip'"
+
+                echo "[autoUpdate] Executing new version..."
+                exec "$(pwd -P)/${scriptName}" "$@"
+            fi
+            # In case there were an error (during pull or executing new)
+            echo "[ERR][autoUpdate] Pulling or executing new version failed."
             exit 1
         fi
         echo "[autoUpdate] No updates available."
@@ -181,6 +189,8 @@ if [ $serviceRestart -gt 0 ]; then
     echo "Config modified. Restarting PHP-${phpVersionWithDot} service..."
     if [ -x /usr/syno/sbin/synoservice  ]; then
         synoservice --restart pkgctl-PHP${phpVersionWithDot}
+    elif [ -x /bin/systemctl  ]; then
+        systemctl restart pkgctl-PHP${phpVersionWithDot}
     else
         echo "[ERR] Could not restart PHP-${phpVersionWithDot} service! Please reboot or try to restart manually via Package Center."
         exit 1
