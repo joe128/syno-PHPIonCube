@@ -112,11 +112,11 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-USED_PHP_VERSION=${IONCUBE_PHP_VERSION:-74}
+USED_PHP_VERSION=${IONCUBE_PHP_VERSION:-81}
 CONFIG_CHANGED_RETURN_STATE=${IONCUBE_RETURN_STATE_IF_CHANGED:-3}
 
 IONCUBE_DOWNLOAD_BASE_URL=https://downloads.ioncube.com/loader_downloads
-IONCUBE_DOWNLOAD_TAR=ioncube_loaders_lin_armv7l.tar.gz
+IONCUBE_DOWNLOAD_TAR=ioncube_loaders_lin_x86-64.tar.gz
 DOWNLOAD_DIR="$(realpath $(dirname $0))/ionCubeSrc"
 IONCUBE_LIB_DIR="$(realpath $(dirname $0))/ionCubeUsed"
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.1] - 2023-06-20
+### Changed
+- set Architecture to amd64
+- set Default PHP-Version to 8.1
+
 ## [2.0.0] - 2022-10-15
 ### Added
  - support for DSM7
